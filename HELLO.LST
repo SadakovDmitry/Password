@@ -1,0 +1,802 @@
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 1
+hello.asm
+
+
+
+      1				     .286
+      2	0000			     .model tiny
+      3	0000			     .code
+      4				     org 100h
+      5
+      6
+      7				     ;CONSTANTS:------------------------------------
+      8	      =B800		     video_ram	     = 0b800h
+      9	      =1003		     change_col_mode = 1003h
+     10	      =4C00		     stop_func	     = 4c00h
+     11	      =0088		     grey_grey	     = 88h
+     12	      =0000		     black_on_black  = 00h
+     13	      =0008		     grey_on_black   = 08h
+     14	      =07D0		     screen_size     = 25 * 80
+     15	      =0087		     white_on_grey   = 87h
+     16	      =00E8		     grey_on_yellow  = 0e8h
+     17	      =00EE		     screen_col	     = 0eeh
+     18	      =0028		     wide	     = 40
+     19	      =0008		     hight	     = 8
+     20	      =001E		     corner_x	     = 30
+     21	      =000A		     corner_y	     = 10
+     22	      =000E		     len_str	     = 14
+     23	      =032F		     corner_point    = corner_x	/ 2 + corner_y * 80
+     24				     ;----------------------------------------------
+     25
+     26
+     27				     ;MAIN
+     28				     ;===============================================================================
+     29				     ;===============================================================================
+     30	0100  B8 1003		     Start:	     mov ax, change_col_mode
+     31	0103  B3 00				     mov bl, 00h
+     32	0105  CD 10				     int 10h
+     33
+     34	0107  B8 B800				     mov ax, video_ram
+     35	010A  8E C0				     mov es, ax
+     36
+     37						     ;call CleanScreen
+     38	010C  E8 0011				     call ReadArgs
+     39	010F  E8 010B				     call DrawAllFrame
+     40	0112  E8 0263				     call DrawShadow
+     41	0115  E8 01A7				     call PrintTitle
+     42	0118  E8 01EF				     call PrintBody
+     43
+     44	011B  B8 4C00		     Stop:	     mov ax, stop_func
+     45	011E  CD 21				     int 21h
+     46				     ;===============================================================================
+     47				     ;===============================================================================
+     48
+     49
+     50				     ;-------------------------------------------------------------------------------
+     51				     ;IN:      None
+     52				     ;OUT:     None
+     53				     ;DAMAGED: AX, BX, CX, DX, SI, DI
+     54				     ;DESC:    reading args of comand string
+     55				     ;===============================================================================
+     56	0120			     ReadArgs	     proc
+     57
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 2
+hello.asm
+
+
+
+     58	0120  BE 0082				     mov si, 0082h   ;start command string
+     59
+     60				     ;Read_Next_Arg:
+     61
+     62	0123  E8 0092				     call ReadNum
+     63	0126  BF 0049r				     lea di, wide_t	     ;di = addres wide_t
+     64	0129  88 05				     mov [di], al	     ;wide_t = al (read	num)
+     65	012B  46				     inc si			     ;si++ (next arg)
+     66
+     67	012C  E8 0089				     call ReadNum
+     68	012F  BF 004Ar				     lea di, height_t	     ;di = addres height_t
+     69	0132  88 05				     mov [di], al	     ;wide_t = al (read	num)
+     70	0134  46				     inc si			     ;si++ (next arg)
+     71
+     72	0135  E8 009B				     call ReadColor
+     73	0138  BF 004Br				     lea di, color	     ;di = addres color
+     74	013B  88 05				     mov [di], al	     ;color = al (read color)
+     75
+     76	013D  46				     inc si		     ;si++ (next arg)
+     77
+     78	013E  8C D8				     mov ax, ds
+     79	0140  8E C0				     mov es, ax
+     80	0142  33 C0				     xor ax, ax
+     81	0144  8A 04				     mov al, [si]
+     82	0146  3C 2A				     cmp al, '*'	     ;if next simbol ==	'*' read parametrs of border
+     83	0148  74 1F				     je	Read_Border	     ;else read	from const massiv
+     84
+     85	014A  8B DE				     mov bx, si			     ;save si to bx
+     86	014C  BF 0000r				     lea di, Border	     ;spot for copy
+     87	014F  2C 30				     sub al, '0'		     ;create number
+     88	0151  F6 26 0051r			     mul eightteen	     ; * 18
+     89	0155  8B F7				     mov si, di		     ;si = from	where copy
+     90	0157  03 F0				     add si, ax
+     91
+     92	0159  B9 0009				     mov cx, 9
+     93	015C  F3> A5				     rep movsw		     ;copy all nine simbols
+     94
+     95	015E  B8 B800				     mov ax, video_ram	     ;es = video RAM
+     96	0161  8E C0				     mov es, ax
+     97
+     98	0163  43				     inc bx
+     99	0164  8B F3				     mov si, bx		     ;return si	from bx
+    100	0166  EB 05 90				     jmp Skip
+    101
+    102	0169			     Read_Border:
+    103	0169  46				     inc si		     ;si++ (next arg)
+    104	016A  E8 0038				     call ReadBorder
+    105
+    106	016D			     Skip:
+    107	016D  B8 B800				     mov ax, video_ram
+    108	0170  8E C0				     mov es, ax
+    109						     ;loop Read_Next_Arg
+    110
+    111						     ;call ReadStr
+    112
+    113	0172  BF 0045r				     lea di, title_str
+    114	0175  46				     inc si
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 3
+hello.asm
+
+
+
+    115	0176  89 35				     mov [di], si	     ;title_str	= pointer to title-str in comand-string
+    116
+    117	0178  E8 0015				     call StrLen
+    118	017B  BF 004Dr				     lea di, title_len
+    119	017E  89 0D				     mov [di], cx	     ;cx = len title
+    120	0180  46				     inc si		     ;skip ':' after title str
+    121
+    122	0181  BF 0047r				     lea di, body_text	     ;body_text	= pointer to body-str in command-string
+    123	0184  89 35				     mov [di], si
+    124
+    125	0186  E8 0007				     call StrLen
+    126	0189  BF 004Er				     lea di, body_len
+    127	018C  89 0D				     mov [di], cx	     ;cx = len title
+    128	018E  46				     inc si		     ;skip '#'
+    129
+    130
+    131	018F  C3				     ret
+    132	0190					     endp
+    133				     ;===============================================================================
+    134
+    135				     ;-------------------------------------------------------------------------------
+    136				     ;IN:      SI = start str
+    137				     ;OUT:     CX = len_str
+    138				     ;DAMAGED: AX, CX, SI
+    139				     ;===============================================================================
+    140	0190			     StrLen  proc
+    141	0190  33 C9				     xor cx, cx
+    142
+    143	0192			     Next_Simbol:
+    144	0192  8A 04				     mov al, [si]
+    145	0194  3C 3A				     cmp al, ':'
+    146	0196  74 0C				     je	Return
+    147	0198  3C 23				     cmp al, '#'
+    148	019A  74 08				     je	Return
+    149	019C  3C 3B				     cmp al, ';'
+    150	019E  74 04				     je	Return
+    151
+    152	01A0  46				     inc si
+    153	01A1  41				     inc cx
+    154
+    155	01A2  EB EE				     jmp Next_Simbol
+    156
+    157	01A4			     Return:
+    158	01A4  C3				     ret
+    159	01A5					     endp
+    160				     ;===============================================================================
+    161
+    162
+    163
+    164				     ;-------------------------------------------------------------------------------
+    165				     ;IN:      SI
+    166				     ;OUT:     Border massiv
+    167				     ;DAMAGED: AX, CX, SI, DI
+    168				     ;===============================================================================
+    169	01A5			     ReadBorder	     proc
+    170
+    171	01A5  B9 0009				     mov cx, 9
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 4
+hello.asm
+
+
+
+    172	01A8  BF 0000r				     lea di, Border		     ;di = Border massiv
+    173
+    174	01AB			     New_Sign:
+    175	01AB  33 C0				     xor ax, ax
+    176	01AD  8A 04				     mov al, [si]
+    177	01AF  88 05				     mov [di], al
+    178	01B1  46				     inc si
+    179	01B2  83 C7 02				     add di, 2
+    180
+    181	01B5  E2 F4				     loop New_Sign
+    182
+    183	01B7  C3				     ret
+    184	01B8					     endp
+    185				     ;===============================================================================
+    186
+    187
+    188
+    189				     ;-------------------------------------------------------------------------------
+    190				     ;IN:      SI = atart new arg
+    191				     ;OUT:     arg
+    192				     ;DAMAGED: AX, BX, DX, SI, DI
+    193				     ;===============================================================================
+    194	01B8			     ReadNum proc
+    195
+    196	01B8  33 C0				     xor ax, ax		     ;ax = 0
+    197	01BA			     NewEter:
+    198	01BA  8A 14				     mov dl, [si]	     ;dl = value SI
+    199
+    200	01BC  80 FA 30				     cmp dl, '0'	     ;compare with ' '
+    201	01BF  72 11				     jb	End_Num
+    202
+    203	01C1  80 FA 39				     cmp dl, '9'
+    204	01C4  77 0C				     ja	End_Num
+    205
+    206						     ;---------------------------------------------
+    207	01C6  80 EA 30				     sub dl, '0'	     ; do number
+    208	01C9  F6 26 004Fr			     mul ten		     ;10 * previous num
+    209	01CD  02 C2				     add al, dl		     ;add next number
+    210	01CF  46				     inc si		     ;si++
+    211						     ;---------------------------------------------
+    212
+    213	01D0  EB E8				     jmp NewEter	     ;new etaration of loop
+    214	01D2			     End_Num:
+    215	01D2  C3				     ret
+    216	01D3					     endp
+    217				     ;===============================================================================
+    218
+    219
+    220
+    221				     ;-------------------------------------------------------------------------------
+    222				     ;IN:  SI
+    223				     ;	       DI = start new arg
+    224				     ;OUT: arg
+    225				     ;DAMAGED: AX, BX, SI, DI
+    226				     ;===============================================================================
+    227	01D3			     ReadColor	     proc
+    228
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 5
+hello.asm
+
+
+
+    229	01D3  33 C0				     xor ax, ax		     ;ax = 0
+    230	01D5  8A 14		     New_Simbol:     mov dl, [si]	     ;dl = value SI
+    231
+    232	01D7  80 FA 30				     cmp dl, '0'	     ;compare with ' '
+    233	01DA  72 11				     jb	End_Color
+    234	01DC  80 FA 66				     cmp dl, 'f'
+    235	01DF  77 0C				     ja	End_Color
+    236
+    237						     ;---------------------------------------------
+    238	01E1  80 EA 30				     sub dl, '0'	     ; do number
+    239	01E4  F6 26 0050r			     mul sixteen	     ;16 * previous num
+    240	01E8  02 C2				     add al, dl		     ;add next number
+    241	01EA  46				     inc si		     ;si++
+    242						     ;---------------------------------------------
+    243
+    244	01EB  EB E8				     jmp New_Simbol	     ;new etaration of loop
+    245	01ED			     End_Color:
+    246	01ED  C3				     ret
+    247	01EE					     endp
+    248				     ;===============================================================================
+    249
+    250
+    251
+    252				     ;-------------------------------------------------------------------------------
+    253				     ;IN:
+    254				     ;OUT: di =	corner_point
+    255				     ;DAMAGED: AX, BX, CX, DI
+    256				     ;===============================================================================
+    257	01EE			     FindCorner	proc
+    258
+    259	01EE  33 FF				     xor di, di
+    260	01F0  33 C9				     xor cx, cx
+    261
+    262						     ;corner_point    =	corner_x / 2 + corner_y	* 80
+    263	01F2  BB 0049r				     lea bx, wide_t	     ;\
+    264	01F5  B8 0050				     mov ax, 80		     ; \
+    265	01F8  8A 0F				     mov cl, [bx]	     ;	> di = (80 - wide) / 2
+    266	01FA  2B C1				     sub ax, cx		     ;	>
+    267	01FC  83 E7 FE				     and di, not 1d
+    268	01FF  F6 36 0052r			     div two		     ; /
+    269	0203  8B F8				     mov di, ax		     ;/
+    270
+    271	0205  BB 004Ar				     lea bx, height_t	     ;\
+    272	0208  B8 0019				     mov ax, 25		     ; \
+    273	020B  8A 0F				     mov cl, [bx]	     ;	> ax = (25 - height) / 2 * 80
+    274	020D  2B C1				     sub ax, cx		     ;	>
+    275	020F  83 E7 FE				     and di, not 1d
+    276	0212  F6 36 0052r			     div two		     ; /
+    277	0216  F6 26 0053r			     mul eighty		     ;/
+    278
+    279	021A  03 F8				     add di, ax		     ; di = di + axs
+    280
+    281	021C  C3				     ret
+    282	021D					     endp
+    283				     ;===============================================================================
+    284
+    285
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 6
+hello.asm
+
+
+
+    286
+    287
+    288				     ;-------------------------------------------------------------------------------
+    289				     ;IN:      ES
+    290				     ;OUT:     None
+    291				     ;DAMAGED: AX, BX, CX, DI, DS, SI
+    292				     ;===============================================================================
+    293	021D			     DrawAllFrame    proc
+    294	021D  E8 FFCE				     call FindCorner
+    295								     ;mov di, corner_point * 2
+    296	0220  03 FF				     add di, di
+    297
+    298	0222  33 C0				     xor ax, ax
+    299	0224  33 DB				     xor bx, bx
+    300				     ;Up Frame ---------------------------------------------
+    301	0226  BE 0000r				     lea si, Border
+    302
+    303	0229  AD				     lodsw	     ;\\
+    304	022A  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    305	022D  8A 27				     mov ah, [bx]    ;//
+    306	022F  AB				     stosw	     ;print left up corner
+    307
+    308	0230  AD				     lodsw	     ;\\
+    309	0231  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    310	0234  8A 27				     mov ah, [bx]    ;//
+    311
+    312	0236  BB 0049r				     lea bx, wide_t  ;\\
+    313	0239  33 C9				     xor cx, cx	     ;||| cx = wide - 2
+    314	023B  8A 0F				     mov cl, [bx]    ;||/
+    315	023D  83 E9 02				     sub cx, 2	     ;//
+    316
+    317	0240  F3> AB				     rep stosw	     ;print up border
+    318	0242  AD				     lodsw	     ;\\
+    319	0243  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    320	0246  8A 27				     mov ah, [bx]    ;//
+    321	0248  AB				     stosw	     ;print right up corner
+    322
+    323	0249  BB 0049r				     lea bx, wide_t  ;\\
+    324	024C  33 C0				     xor ax, ax	     ;||\
+    325	024E  8A 07				     mov al, [bx]    ;|||| di =	di + (80 - wide) * 2 (newline)
+    326	0250  81 C7 00A0			     add di, 80	* 2  ;|||/
+    327	0254  2B F8				     sub di, ax	     ;||/
+    328	0256  2B F8				     sub di, ax	     ;//
+    329
+    330				     ;Medium Frame -------------------------------------------
+    331	0258  33 D2				     xor dx, dx
+    332	025A			     New_Str:
+    333	025A  BE 0000r				     lea si, Border
+    334	025D  83 C6 06				     add si, 6	     ;return to	start of massiv
+    335
+    336	0260  AD				     lodsw	     ;<\
+    337	0261  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    338	0264  8A 27				     mov ah, [bx]    ;</
+    339	0266  AB				     stosw	     ;print elem of left border
+    340
+    341	0267  AD				     lodsw	     ;<\
+    342	0268  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 7
+hello.asm
+
+
+
+    343	026B  8A 27				     mov ah, [bx]    ;</
+    344
+    345	026D  BB 0049r				     lea bx, wide_t  ;<\
+    346	0270  33 C9				     xor cx, cx	     ;||| cx = wide - 2
+    347	0272  8A 0F				     mov cl, [bx]    ;||/
+    348	0274  83 E9 02				     sub cx, 2	     ;</
+    349
+    350	0277  F3> AB				     rep stosw	     ;fill frame
+    351	0279  AD				     lodsw	     ;<\
+    352	027A  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    353	027D  8A 27				     mov ah, [bx]    ;</
+    354	027F  AB				     stosw		     ;print elem of right border
+    355
+    356	0280  BB 0049r				     lea bx, wide_t  ;<\
+    357	0283  33 C0				     xor ax, ax	     ;||\
+    358	0285  8A 07				     mov al, [bx]    ;|||| di =	di + (80 - wide) * 2
+    359	0287  81 C7 00A0			     add di, 80	* 2  ;|||/
+    360	028B  2B F8				     sub di, ax	     ;||/
+    361	028D  2B F8				     sub di, ax	     ;</
+    362
+    363	028F  42				     inc dx	     ; dx++
+    364
+    365	0290  BB 004Ar				     lea bx, height_t;<\
+    366	0293  33 C9				     xor cx, cx	     ;||| cx = hight - 2
+    367	0295  8A 0F				     mov cl, [bx]    ;||/
+    368	0297  83 E9 02				     sub cx, 2	     ;</
+    369
+    370	029A  3B D1				     cmp dx, cx	     ;||if cx != dx print next string
+    371	029C  75 BC				     jne New_Str     ;</
+    372
+    373				     ;Down Frame ----------------------------------------------
+    374						     ;lea si, Down_Border
+    375						     ;add si, 3
+    376
+    377	029E  AD				     lodsw	     ;<\
+    378	029F  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    379	02A2  8A 27				     mov ah, [bx]    ;</
+    380	02A4  AB				     stosw	     ;print left down corner
+    381
+    382	02A5  AD				     lodsw	     ;<\
+    383	02A6  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    384	02A9  8A 27				     mov ah, [bx]    ;</
+    385
+    386	02AB  BB 0049r				     lea bx, wide_t  ;<\
+    387	02AE  33 C9				     xor cx, cx	     ;||| cx = wide - 2
+    388	02B0  8A 0F				     mov cl, [bx]    ;||/
+    389	02B2  83 E9 02				     sub cx, 2	     ;</
+    390	02B5  F3> AB				     rep stosw	     ;print down border
+    391
+    392	02B7  AD				     lodsw	     ;<\
+    393	02B8  BB 004Br				     lea bx, color   ;|} ah = color , al = ASCII of sign
+    394	02BB  8A 27				     mov ah, [bx]    ;</
+    395	02BD  AB				     stosw	     ;print down right corner
+    396
+    397	02BE  C3				     ret
+    398	02BF					     endp
+    399				     ;===============================================================================
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 8
+hello.asm
+
+
+
+    400
+    401
+    402				     ;-------------------------------------------------------------------------------
+    403				     ;IN:      ES, SI
+    404				     ;OUT:     None
+    405				     ;DAMAGED: AX, CX, BX, DX, ES, SI, DI
+    406				     ;DESC:    print given string with start in	given point straight to	VRAM
+    407				     ;===============================================================================
+    408	02BF			     PrintTitle	     proc
+    409
+    410	02BF  E8 FF2C				     call FindCorner	     ;<\
+    411	02C2  33 C0				     xor ax, ax			;\
+    412	02C4  33 C9				     xor cx, cx
+    413	02C6  33 DB				     xor bx, bx
+    414	02C8  03 FF				     add di, di			 ;| di = corner	point
+    415	02CA  BE 004Dr				     lea si, title_len		;/
+    416	02CD  8A 04				     mov al, [si]	       ;/
+    417	02CF  25 FFFE				     and ax, not 1d
+    418	02D2  2B F8				     sub di, ax		     ;</
+    419
+    420	02D4  33 C0				     xor ax, ax
+    421	02D6  BE 0049r				     lea si, wide_t
+    422	02D9  8A 04				     mov al, [si]
+    423	02DB  03 F8				     add di, ax
+    424	02DD  83 E7 FE				     and di, not 1d
+    425	02E0  8B CF				     mov cx, di
+    426
+    427									     ;mov cx, (corner_point + wide / 2 - len_str / 2) *	2
+    428
+    429	02E2  33 F6				     xor si, si
+    430	02E4  BE 0045r				     lea si, title_str
+    431	02E7  8B 34				     mov si, [si]
+    432									     ;start of str in VRAM
+    433	02E9  33 C0				     xor ax, ax
+    434	02EB  33 DB				     xor bx, bx
+    435
+    436	02ED  8B DE		     Next:   mov bx, si			     ;BX = SI (pointer to char in str)
+    437	02EF  8A 17				     mov dl, [bx]	     ;dl = bx
+    438	02F1  80 FA 3A				     cmp dl, ':'	     ;compare with ':'
+    439
+    440	02F4  74 13				     je	End_Str
+    441
+    442						     ;---------------------------------------------
+    443
+    444	02F6  8B D9				     mov bx, cx			     ;bx = cx
+    445
+    446	02F8  26: 88 17				     mov byte ptr es:[bx], dl	     ;set ASCII	cod of simbol
+    447	02FB  BF 004Br				     lea di, color
+    448	02FE  8A 25				     mov byte ptr ah, [di]
+    449	0300  26: 88 67	01			     mov byte ptr es:[bx + 1], ah    ;set colour of simbol and fon
+    450
+    451	0304  41				     inc cx			     ;cx++
+    452	0305  41				     inc cx			     ;cx++
+    453	0306  46				     inc si			     ;di++
+    454
+    455						     ;---------------------------------------------
+    456	0307  EB E4				     jmp Next
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 9
+hello.asm
+
+
+
+    457
+    458	0309			     End_str:
+    459	0309  C3				     ret
+    460	030A					     endp
+    461				     ;===============================================================================
+    462
+    463
+    464
+    465				     ;-------------------------------------------------------------------------------
+    466				     ;IN:      ES, SI
+    467				     ;OUT:     None
+    468				     ;DAMAGED: AX, CX, BX, DX, ES, SI, DI
+    469				     ;DESC:    print given string with start in	given point straight to	VRAM
+    470				     ;===============================================================================
+    471	030A			     PrintBody			     proc
+    472	030A  33 ED				     xor bp, bp
+    473
+    474	030C			     Body_Str:
+    475	030C  E8 FEDF				     call FindCorner	     ;<\
+    476	030F  33 C0				     xor ax, ax			;\
+    477	0311  33 DB				     xor bx, bx
+    478	0313  33 C9				     xor cx, cx
+    479
+    480	0315  03 FF				     add di, di			 ;| di = corner	point
+    481	0317  BE 004Er				     lea si, body_len		;/
+    482	031A  8A 04				     mov al, [si]	       ;/
+    483	031C  25 FFFE				     and ax, not 1d
+    484	031F  2B F8				     sub di, ax		     ;</
+    485
+    486	0321  33 C0				     xor ax, ax
+    487	0323  BE 0049r				     lea si, wide_t
+    488	0326  8A 04				     mov al, [si]
+    489	0328  03 F8				     add di, ax
+    490	032A  81 C7 0140			     add di, 80	* 2 * 2	     ;skip one line
+    491	032E  03 FD				     add di, bp			     ;numline
+    492	0330  83 E7 FE				     and di, not 1d
+    493	0333  8B CF				     mov cx, di
+    494									     ;mov cx, (corner_point + wide / 2 - len_str / 2) *	2
+    495
+    496	0335  33 F6				     xor si, si
+    497	0337  BE 0047r				     lea si, body_text
+    498	033A  8B 34				     mov si, [si]
+    499									     ;start of str in VRAM
+    500	033C  33 C0				     xor ax, ax
+    501	033E  33 DB				     xor bx, bx
+    502
+    503	0340  8B DE		     Next2:  mov bx, si			     ;BX = SI (pointer to char in str)
+    504	0342  8A 17				     mov dl, [bx]	     ;dl = bx
+    505	0344  80 FA 23				     cmp dl, '#'	     ;compare with '#'
+    506	0347  74 18				     je	Next_str
+    507	0349  80 FA 3B				     cmp dl, ';'
+    508	034C  74 29				     je	End_Body
+    509
+    510						     ;---------------------------------------------
+    511
+    512	034E  8B D9				     mov bx, cx			     ;bx = cx
+    513
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 10
+hello.asm
+
+
+
+    514	0350  26: 88 17				     mov byte ptr es:[bx], dl	     ;set ASCII	cod of simbol
+    515	0353  BF 004Br				     lea di, color
+    516	0356  8A 25				     mov byte ptr ah, [di]
+    517	0358  26: 88 67	01			     mov byte ptr es:[bx + 1], ah    ;set colour of simbol and fon
+    518
+    519	035C  41				     inc cx			     ;cx++
+    520	035D  41				     inc cx			     ;cx++
+    521	035E  46				     inc si			     ;si++
+    522
+    523						     ;---------------------------------------------
+    524	035F  EB DF				     jmp Next2
+    525	0361			     Next_str:
+    526	0361  46				     inc si			     ;si++ skip	'#'
+    527	0362  BF 0047r				     lea di, body_text		     ;di = addres str
+    528	0365  89 35				     mov [di], si		     ;addres of	next string
+    529	0367  E8 FE26				     call StrLen
+    530	036A  BF 004Er				     lea di, body_len
+    531	036D  89 0D				     mov [di], cx
+    532	036F  2B F1				     sub si, cx
+    533	0371  81 C5 00A0			     add bp, 80	* 2		     ;+	line
+    534	0375  EB 95				     jmp Body_Str
+    535
+    536	0377			     End_Body:
+    537	0377  C3				     ret
+    538	0378					     endp
+    539				     ;===============================================================================
+    540
+    541
+    542				     ;-------------------------------------------------------------------------------
+    543				     ;IN:     ES, DX
+    544				     ;OUT:    None
+    545				     ;DAMAGE: BX, CX, DX, AX
+    546				     ;DESC:   draw shadow near rectangle
+    547				     ;===============================================================================
+    548	0378			     DrawShadow	     proc
+    549
+    550	0378  E8 FE73				     call FindCorner
+    551	037B  83 C7 50				     add di, 80
+    552	037E  03 FF				     add di, di
+    553
+    554	0380  BB 0049r				     lea bx, wide_t	     ;\\
+    555	0383  33 C0				     xor ax, ax		     ;|| al = wide
+    556	0385  8A 07				     mov al, [bx]	     ;//
+    557
+    558	0387  8B DF				     mov bx, di		     ; bx = addres of corner
+    559
+    560	0389  03 D8				     add bx, ax
+    561	038B  03 D8				     add bx, ax
+    562	038D  8B F3				     mov si, bx
+    563
+    564	038F  BB 004Ar				     lea bx, height_t	     ;\\
+    565	0392  33 C9				     xor cx, cx		     ;||| cx = height -	1
+    566	0394  8A 0F				     mov cl, [bx]	     ;||/
+    567	0396  83 E9 01				     sub cx, 1		     ;//
+    568
+    569	0399			     RightShadow:
+    570	0399  26: C6 44	01 E8			     mov byte ptr es:[si + 1], grey_on_yellow
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 11
+hello.asm
+
+
+
+    571	039E  81 C6 00A0			     add si, 80	* 2
+    572
+    573	03A2  E2 F5				     loop RightShadow
+    574
+    575	03A4  BB 0049r				     lea bx, wide_t
+    576	03A7  33 C9				     xor cx, cx
+    577	03A9  8A 0F				     mov cl, [bx]
+    578
+    579
+    580	03AB			     DownShadow:
+    581	03AB  26: C6 44	01 E8			     mov byte ptr es:[si + 1], grey_on_yellow
+    582	03B0  83 EE 02				     sub si, 2
+    583
+    584	03B3  E2 F6				     loop DownShadow
+    585
+    586	03B5  C3				     ret
+    587	03B6					     endp
+    588				     ;===============================================================================
+    589
+    590
+    591				     ;-------------------------------------------------------------------------------
+    592				     ;IN:      ES
+    593				     ;OUT:     None
+    594				     ;DAMAGED: BX, CX
+    595				     ;DESC:    clean all screen
+    596				     ;===============================================================================
+    597	03B6			     CleanScreen     proc
+    598
+    599	03B6  B9 07D0				     mov cx, screen_size
+    600	03B9  BB 0000				     mov bx, 0
+    601
+    602	03BC					     clean:
+    603	03BC  26: C6 47	01 EE				     mov byte ptr es:[bx + 1], screen_col
+    604	03C1  83 C3 02					     add bx, 2
+    605	03C4  E2 F6				     loop clean
+    606
+    607	03C6  C3				     ret
+    608	03C7					     endp
+    609				     ;===============================================================================
+    610
+    611	03C7			     .data
+    612
+    613	0000  87C9 87CD	87BB 87BA +  Border	     dw	87c9h, 87cdh, 87bbh, 87bah, 8700h, 87bah, 87c8h, 87cdh,	87bch
+    614	      8700 87BA	87C8 87CD +
+    615	      87BC
+    616	0012  6E23 6E23	6E23 6E23 +  Border_1	     dw	6e23h, 6e23h, 6e23h, 6e23h, 6e00h, 6e23h, 6e23h, 6e23h,	6e23h
+    617	      6E00 6E23	6E23 6E23 +
+    618	      6E23
+    619	0024  7403 7403	7403 7403 +  Border_2	     dw	7403h, 7403h, 7403h, 7403h, 7400h, 7403h, 7403h, 7403h,	7403h
+    620	      7400 7403	7403 7403 +
+    621	      7403
+    622
+    623	0036  20 48 65 6C 6C 6F	20+  str_HW	     db	' Hello	world! $'
+    624	      77 6F 72 6C 64 21	20+
+    625	      24
+    626	0045  0000		     title_str	     dw	0
+    627	0047  0000		     body_text	     dw	0
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 12
+hello.asm
+
+
+
+    628	0049  00		     wide_t	     db	0
+    629	004A  00		     height_t	     db	0
+    630	004B  87		     color	     db	87h
+    631	004C  00		     num_args	     db	0
+    632	004D  0A		     title_len	     db	10
+    633	004E  0A		     body_len	     db	10
+    634
+    635	004F  0A		     ten		     db	10
+    636	0050  10		     sixteen	     db	16
+    637	0051  12		     eightteen	     db	18
+    638	0052  02		     two	     db	2
+    639	0053  50		     eighty	     db	80
+    640
+    641				     end	     Start
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 13
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/20/24"
+??FILENAME			  Text	 "hello	  "
+??TIME				  Text	 "23:24:16"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0707H
+@CURSEG				  Text	 _DATA
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 HELLO
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+BLACK_ON_BLACK			  Number 0000
+BODY_LEN			  Byte	 DGROUP:004E
+BODY_STR			  Near	 DGROUP:030C
+BODY_TEXT			  Word	 DGROUP:0047
+BORDER				  Word	 DGROUP:0000
+BORDER_1			  Word	 DGROUP:0012
+BORDER_2			  Word	 DGROUP:0024
+CHANGE_COL_MODE			  Number 1003
+CLEAN				  Near	 DGROUP:03BC
+CLEANSCREEN			  Near	 DGROUP:03B6
+COLOR				  Byte	 DGROUP:004B
+CORNER_POINT			  Number 032F
+CORNER_X			  Number 001E
+CORNER_Y			  Number 000A
+DOWNSHADOW			  Near	 DGROUP:03AB
+DRAWALLFRAME			  Near	 DGROUP:021D
+DRAWSHADOW			  Near	 DGROUP:0378
+EIGHTTEEN			  Byte	 DGROUP:0051
+EIGHTY				  Byte	 DGROUP:0053
+END_BODY			  Near	 DGROUP:0377
+END_COLOR			  Near	 DGROUP:01ED
+END_NUM				  Near	 DGROUP:01D2
+END_STR				  Near	 DGROUP:0309
+FINDCORNER			  Near	 DGROUP:01EE
+GREY_GREY			  Number 0088
+GREY_ON_BLACK			  Number 0008
+GREY_ON_YELLOW			  Number 00E8
+HEIGHT_T			  Byte	 DGROUP:004A
+HIGHT				  Number 0008
+LEN_STR				  Number 000E
+NEWETER				  Near	 DGROUP:01BA
+NEW_SIGN			  Near	 DGROUP:01AB
+NEW_SIMBOL			  Near	 DGROUP:01D5
+NEW_STR				  Near	 DGROUP:025A
+NEXT				  Near	 DGROUP:02ED
+NEXT2				  Near	 DGROUP:0340
+NEXT_SIMBOL			  Near	 DGROUP:0192
+NEXT_STR			  Near	 DGROUP:0361
+Turbo Assembler	 Version 4.1	    02/20/24 23:24:17	    Page 14
+Symbol Table
+
+
+
+NUM_ARGS			  Byte	 DGROUP:004C
+PRINTBODY			  Near	 DGROUP:030A
+PRINTTITLE			  Near	 DGROUP:02BF
+READARGS			  Near	 DGROUP:0120
+READBORDER			  Near	 DGROUP:01A5
+READCOLOR			  Near	 DGROUP:01D3
+READNUM				  Near	 DGROUP:01B8
+READ_BORDER			  Near	 DGROUP:0169
+RETURN				  Near	 DGROUP:01A4
+RIGHTSHADOW			  Near	 DGROUP:0399
+SCREEN_COL			  Number 00EE
+SCREEN_SIZE			  Number 07D0
+SIXTEEN				  Byte	 DGROUP:0050
+SKIP				  Near	 DGROUP:016D
+START				  Near	 DGROUP:0100
+STOP				  Near	 DGROUP:011B
+STOP_FUNC			  Number 4C00
+STRLEN				  Near	 DGROUP:0190
+STR_HW				  Byte	 DGROUP:0036
+TEN				  Byte	 DGROUP:004F
+TITLE_LEN			  Byte	 DGROUP:004D
+TITLE_STR			  Word	 DGROUP:0045
+TWO				  Byte	 DGROUP:0052
+VIDEO_RAM			  Number B800
+WHITE_ON_GREY			  Number 0087
+WIDE				  Number 0028
+WIDE_T				  Byte	 DGROUP:0049
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0054 Word	  Public  DATA
+  _TEXT				  16  03C7 Word	  Public  CODE
+
