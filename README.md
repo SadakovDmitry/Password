@@ -37,5 +37,5 @@
 ![Изображение][1]
 
 
-[1]: /Users/dima/Downloads "Было"
+[1]: /Users/dima/Downloads/IMG_6941.JPG "Было"
 #### Стало
